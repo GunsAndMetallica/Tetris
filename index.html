@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Tetris — Single / Local Multiplayer + Auto-play</title>
+<style>
+  :root{--bg:#071223;--panel:#0b1a2a;--muted:#cfe9ff;--accent:#4cc0ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(180deg,var(--bg),#041423);color:var(--muted);font-family:Inter,system-ui,Arial;min-height:100vh;display:flex;flex-direction:column}
+  header{padding:12px 16px;display:flex;align-items:center;gap:12px}
+  h1{margin:0;font-size:18px;color:var(--accent)}
+  #container{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:12px;gap:12px;flex-wrap:wrap}
+  .player{background:var(--panel);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);width:320px;display:flex;flex-direction:column;align-items:center}
+  canvas{display:block;width:240px;height:400px;background:linear-gradient(180deg,#081827,#071323);border-radius:6px;image-rendering:pixelated}
+  .info{width:100%;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+  .score{font-weight:700;color:var(--accent)}
+  .controls{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;justify-content:center}
+  .btn{padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);color:var(--muted);font-weight:600}
+  .leaderboard{width:320px;background:var(--panel);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);max-height:480px;overflow:auto}
+  .lb-title{font-weight:800;margin-bottom:8px;color:var(--accent)}
+  footer{padding:8px 12px;text-align:center;color:rgba(255,255,255,0.45);font-size:13px}
+  /* menu overlay */
+  #menuOverlay{position:fixed;inset:0;display:grid;place-items:center;background:rgba(0,0,0,0.6);z-index:999}
+  #menuCard{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:20px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);min-width:320px;text-align:center}
+  .menu-btn{display:block;margin:8px auto;padding:10px 14px;border-radius:10px;background:var(--accent);border:none;color:#052;cursor:pointer;font-weight:800}
+  .small{font-size:13px;color:rgba(255,255,255,0.75)}
+  @media(max-width:900px){
+    #container{flex-direction:column;align-items:center}
+    .player,.leaderboard{width:92%}
+    canvas{width:92%;height:60vh;max-height:520px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tetris — Single / Local Multiplayer</h1>
+  <div style="margin-left:auto;font-size:13px;color:rgba(255,255,255,0.65)">Local highs (browser)</div>
+</header>
+
+<!-- Menu -->
+<div id="menuOverlay" role="dialog" aria-modal="true">
+  <div id="menuCard">
+    <h2 style="margin:0 0 8px">Choose Mode</h2>
+    <button id="btnSingle" class="menu-btn">Single Player</button>
+    <button id="btnTwo" class="menu-btn" style="background:#9b8cff">Two Players</button>
+    <button id="btnTwoAuto" class="menu-btn" style="background:#ffd166">Two Players (Auto-play P2)</button>
+    <div style="height:10px"></div>
+    <div class="small">Controls: Player1 = Arrow keys / Player2 = A D W S F (or touch). Hard drop: Space (P1) or F (P2)</div>
+    <div style="height:8px"></div>
+    <button id="btnViewHS" class="btn" style="margin-top:10px">View High Scores</button>
+  </div>
+</div>
+
+<div id="container">
+  <!-- Player 1 -->
+  <div class="player" id="panel1">
+    <div style="font-size:14px;font-weight:800">Player 1 (Arrows)</div>
+    <canvas id="c1" width="240" height="400"></canvas>
+    <div class="info"><div>Score</div><div id="s1" class="score">0</div></div>
+    <div class="info" style="margin-top:6px"><div>Lines</div><div id="l1">0</div></div>
+    <div class="controls" style="margin-top:8px">
+      <div style="display:flex;gap:6px">
+        <button class="btn touch" data-p="1" data-act="left">←</button>
+        <button class="btn touch" data-p="1" data-act="rotate">⟳</button>
+        <button class="btn touch" data-p="1" data-act="right">→</button>
+        <button class="btn touch" data-p="1" data-act="down">↓</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn touch" data-p="1" data-act="drop">HARD DROP</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player 2 -->
+  <div class="player" id="panel2">
+    <div style="font-size:14px;font-weight:800">Player 2 (A D W S F)</div>
+    <canvas id="c2" width="240" height="400"></canvas>
+    <div class="info"><div>Score</div><div id="s2" class="score">0</div></div>
+    <div class="info" style="margin-top:6px"><div>Lines</div><div id="l2">0</div></div>
+    <div class="controls" style="margin-top:8px">
+      <div style="display:flex;gap:6px">
+        <button class="btn touch" data-p="2" data-act="left">←</button>
+        <button class="btn touch" data-p="2" data-act="rotate">⟳</button>
+        <button class="btn touch" data-p="2" data-act="right">→</button>
+        <button class="btn touch" data-p="2" data-act="down">↓</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn touch" data-p="2" data-act="drop">HARD DROP</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard -->
+  <div class="leaderboard" id="leaderboard">
+    <div class="lb-title">Top Scores (Local)</div>
+    <ol id="lbList"></ol>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn" id="clearScores">Clear Scores</button>
+      <button class="btn" id="newGames" style="margin-left:auto">New Games</button>
+    </div>
+  </div>
+</div>
+
+<footer>Keyboard: Player1 = Arrow keys / Player2 = A (left), D (right), W (rotate), S (down), F (hard drop)</footer>
+
+<script>
+(() => {
+  // ---------- constants & shapes ----------
+  const COLS = 10, ROWS = 20, BLOCK = 12;
+  const TETROMINOS = {
+    I:{matrix:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],color:'#4cc0ff'},
+    J:{matrix:[[1,0,0],[1,1,1],[0,0,0]],color:'#7efc6a'},
+    L:{matrix:[[0,0,1],[1,1,1],[0,0,0]],color:'#ffd166'},
+    O:{matrix:[[1,1],[1,1]],color:'#ff6b6b'},
+    S:{matrix:[[0,1,1],[1,1,0],[0,0,0]],color:'#9b8cff'},
+    T:{matrix:[[0,1,0],[1,1,1],[0,0,0]],color:'#ff9f80'},
+    Z:{matrix:[[1,1,0],[0,1,1],[0,0,0]],color:'#ffd38f'}
+  };
+  function randKey(){ const k=Object.keys(TETROMINOS); return k[Math.floor(Math.random()*k.length)]; }
+
+  // ---------- highscores ----------
+  const HS_KEY = 'tetris_local_highscores_v1';
+  function loadHighscores(){ try { return JSON.parse(localStorage.getItem(HS_KEY) || '[]'); } catch(e){ return []; } }
+  function saveHighscores(list){ localStorage.setItem(HS_KEY, JSON.stringify(list)); }
+  function addScore(name,score){
+    const list = loadHighscores();
+    list.push({name:name||'Anon',score:Math.floor(score),when:Date.now()});
+    list.sort((a,b)=>b.score-a.score);
+    saveHighscores(list.slice(0,10));
+    renderLeaderboard();
+  }
+  function clearScores(){ saveHighscores([]); renderLeaderboard(); }
+
+  // ---------- leaderboard UI ----------
+  const lbList = document.getElementById('lbList');
+  function renderLeaderboard(){
+    const items = loadHighscores();
+    lbList.innerHTML = '';
+    if (!items.length){ lbList.innerHTML = '<li style="color:rgba(255,255,255,0.5)">No scores yet</li>'; return; }
+    items.forEach(it => {
+      const d = new Date(it.when);
+      const li = document.createElement('li');
+      li.textContent = `${it.name} — ${it.score} (${d.toLocaleDateString()})`;
+      lbList.appendChild(li);
+    });
+  }
+
+  // ---------- Player class ----------
+  class Player {
+    constructor(canvasId, scoreElId, linesElId, label){
+      this.canvas = document.getElementById(canvasId);
+      this.ctx = this.canvas.getContext('2d');
+      this.canvas.width = COLS * BLOCK; this.canvas.height = ROWS * BLOCK;
+      this.scoreEl = document.getElementById(scoreElId);
+      this.linesEl = document.getElementById(linesElId);
+      this.label = label || '';
+      this.reset();
+      this.update(0);
+    }
+    reset(){
+      this.board = Array.from({length:ROWS},()=>new Array(COLS).fill(0));
+      this.score = 0; this.lines = 0; this.level = 1; this.dropInterval = 1000;
+      this.dropCounter = 0; this.lastTime = 0;
+      this.running = true; this.paused = false;
+      this.next = this.randomPiece(); this.spawnPiece();
+      this.updateUI();
+    }
+    randomPiece(){ const k=randKey(); return {type:k,matrix:JSON.parse(JSON.stringify(TETROMINOS[k].matrix)),color:TETROMINOS[k].color,x:0,y:0}; }
+    spawnPiece(){ this.piece = this.next || this.randomPiece(); this.next = this.randomPiece(); this.piece.x = Math.floor((COLS - this.piece.matrix[0].length)/2); this.piece.y = -1; if (this.collide(this.piece)) { this.running = false; this.gameOver(); } }
+    rotateMatrix(m,dir){ for(let y=0;y<m.length;y++) for(let x=0;x<y;x++) [m[x][y],m[y][x]]=[m[y][x],m[x][y]]; if (dir>0) m.forEach(r=>r.reverse()); else m.reverse(); }
+    collide(piece){
+      const m = piece.matrix;
+      for(let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++) if (m[y][x]){
+        const bx = piece.x + x, by = piece.y + y;
+        if (by<0) continue;
+        if (bx<0 || bx>=COLS || by>=ROWS) return true;
+        if (this.board[by][bx]) return true;
+      }
+      return false;
+    }
+    merge(){ const m=this.piece.matrix; for(let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++) if (m[y][x]){ const bx=this.piece.x+x, by=this.piece.y+y; if (by>=0) this.board[by][bx]=this.piece.color; } }
+    clearLines(){
+      let cleared=0;
+      outer: for(let y=ROWS-1;y>=0;y--){ for(let x=0;x<COLS;x++) if (!this.board[y][x]) continue outer; this.board.splice(y,1); this.board.unshift(new Array(COLS).fill(0)); cleared++; y++; }
+      if (cleared){ this.lines += cleared; const pts = (cleared===1?40:cleared===2?100:cleared===3?300:1200)*this.level; this.score += pts; this.level = Math.floor(this.lines/10)+1; this.dropInterval = Math.max(120,1000 - (this.level-1)*80); this.updateUI(); }
+    }
+    lockPiece(){ this.merge(); this.clearLines(); this.spawnPiece(); }
+    hardDrop(){ while(!this.collide({...this.piece, y:this.piece.y+1})) this.piece.y++; this.lockPiece(); }
+    softDrop(){ this.piece.y++; if (this.collide(this.piece)){ this.piece.y--; this.lockPiece(); } this.dropCounter = 0; this.updateUI(); }
+    move(dx){ this.piece.x += dx; if (this.collide(this.piece)) this.piece.x -= dx; }
+    rotate(dir){ const backup = JSON.parse(JSON.stringify(this.piece)); this.rotateMatrix(this.piece.matrix, dir); let offset=1; while(this.collide(this.piece)){ this.piece.x += offset; offset = -(offset + (offset>0?1:-1)); if (Math.abs(offset) > this.piece.matrix[0].length){ this.piece = backup; return; } } }
+    updateUI(){ if (this.scoreEl) this.scoreEl.textContent = this.score; if (this.linesEl) this.linesEl.textContent = this.lines; }
+    drawCell(x,y,color){ const ctx=this.ctx; ctx.fillStyle=color; ctx.fillRect(x*BLOCK+1,y*BLOCK+1,BLOCK-2,BLOCK-2); ctx.strokeStyle='rgba(0,0,0,0.25)'; ctx.strokeRect(x*BLOCK+1,y*BLOCK+1,BLOCK-2,BLOCK-2); }
+    draw(){
+      const ctx=this.ctx; ctx.clearRect(0,0,this.canvas.width,this.canvas.height); ctx.fillStyle='#071827'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+      for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if (this.board[y][x]) this.drawCell(x,y,this.board[y][x]); else { ctx.fillStyle='rgba(255,255,255,0.01)'; ctx.fillRect(x*BLOCK,y*BLOCK,BLOCK,BLOCK); }
+      const m=this.piece.matrix; for(let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++) if (m[y][x]){ const bx=this.piece.x+x, by=this.piece.y+y; if (by>=0) this.drawCell(bx,by,this.piece.color); }
+    }
+    gameOver(){ this.drawGameOverFlash(); setTimeout(()=>{ const name = prompt(this.label + ' — Game Over! Enter name for leaderboard:', this.label || 'Player'); addScore(name || this.label || 'Player', this.score); this.reset(); }, 700); }
+    drawGameOverFlash(){ const ctx=this.ctx; ctx.fillStyle='rgba(255,0,0,0.45)'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height); }
+    reset(){ this.resetInternal(); }
+    resetInternal(){ this.board = Array.from({length:ROWS},()=>new Array(COLS).fill(0)); this.score=0; this.lines=0; this.level=1; this.dropInterval=1000; this.dropCounter=0; this.lastTime=0; this.running=true; this.paused=false; this.next=this.randomPiece(); this.spawnPiece(); this.updateUI(); }
+    update(time=0){ if (!this.running) return; if (this.paused){ this.lastTime=time; requestAnimationFrame(t=>this.update(t)); return; } const delta = time - this.lastTime; this.lastTime = time; this.dropCounter += delta; if (this.dropCounter > this.dropInterval){ this.softDrop(); this.dropCounter=0; } this.draw(); this.updateUI(); requestAnimationFrame(t=>this.update(t)); }
+  }
+
+  // ---------- create players ----------
+  const P1 = new Player('c1','s1','l1','Player 1');
+  const P2 = new Player('c2','s2','l2','Player 2');
+  renderLeaderboard();
+
+  // ---------- mode handling ----------
+  const menuOverlay = document.getElementById('menuOverlay');
+  const btnSingle = document.getElementById('btnSingle');
+  const btnTwo = document.getElementById('btnTwo');
+  const btnTwoAuto = document.getElementById('btnTwoAuto');
+  const btnViewHS = document.getElementById('btnViewHS');
+  const panel2 = document.getElementById('panel2');
+
+  let mode = 'menu';
+  let autoPlayP2 = false;
+  function showMenu(){ menuOverlay.style.display='grid'; mode='menu'; panel2.style.display='flex'; }
+  function startSingle(){ menuOverlay.style.display='none'; mode='single'; panel2.style.display='none'; autoPlayP2=false; P1.resetInternal(); P2.resetInternal(); P1.update(0); }
+  function startTwo(auto=false){ menuOverlay.style.display='none'; mode='two'; panel2.style.display='flex'; autoPlayP2 = auto; P1.resetInternal(); P2.resetInternal(); if (autoPlayP2) startAutoPlay(); P1.update(0); P2.update(0); }
+
+  btnSingle.addEventListener('click', ()=> startSingle());
+  btnTwo.addEventListener('click', ()=> startTwo(false));
+  btnTwoAuto.addEventListener('click', ()=> startTwo(true));
+  btnViewHS.addEventListener('click', ()=> { renderLeaderboard(); alert('Leaderboard shown on the right.'); });
+
+  // ---------- key controls ----------
+  window.addEventListener('keydown', (e) => {
+    if (mode === 'menu') return;
+    // P1: arrows + space
+    if (e.key === 'ArrowLeft') P1.move(-1);
+    else if (e.key === 'ArrowRight') P1.move(1);
+    else if (e.key === 'ArrowDown') P1.softDrop();
+    else if (e.key === 'ArrowUp') P1.rotate(1);
+    else if (e.code === 'Space'){ e.preventDefault(); P1.hardDrop(); }
+
+    // P2: A D W S F (only if in two-player mode)
+    if (mode === 'two' && !autoPlayP2){
+      const k = e.key.toLowerCase();
+      if (k === 'a') P2.move(-1);
+      else if (k === 'd') P2.move(1);
+      else if (k === 's') P2.softDrop();
+      else if (k === 'w') P2.rotate(1);
+      else if (k === 'f') P2.hardDrop();
+    }
+  });
+
+  // ---------- touch buttons ----------
+  document.querySelectorAll('.touch').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      const p = ev.currentTarget.getAttribute('data-p');
+      const act = ev.currentTarget.getAttribute('data-act');
+      const player = (p === '1') ? P1 : P2;
+      if (p === '2' && mode !== 'two') return;
+      if (act === 'left') player.move(-1);
+      else if (act === 'right') player.move(1);
+      else if (act === 'down') player.softDrop();
+      else if (act === 'rotate') player.rotate(1);
+      else if (act === 'drop') player.hardDrop();
+    });
+  });
+
+  // ---------- simple auto-play for P2 ----------
+  let autoInterval = null;
+  function startAutoPlay(){
+    if (autoInterval) clearInterval(autoInterval);
+    autoInterval = setInterval(() => {
+      if (!P2.running) return;
+      // very simple heuristic:
+      // - evaluate each column (0..COLS-1) by scanning where current piece would land
+      // - move toward column with lowest highest-stack (try to keep flat)
+      try {
+        const bestCol = pickBestColumn(P2);
+        if (bestCol < P2.piece.x) P2.move(-1);
+        else if (bestCol > P2.piece.x) P2.move(1);
+        else {
+          if (Math.random() < 0.5) P2.rotate(1);
+          else P2.softDrop();
+          if (Math.random() < 0.12) P2.hardDrop();
+        }
+      } catch(e){}
+    }, 160);
+  }
+  function stopAutoPlay(){ if (autoInterval) clearInterval(autoInterval); autoInterval=null; }
+  function pickBestColumn(player){
+    // naive: pick column that results in minimal column height after placement
+    const m = player.piece.matrix;
+    let best = player.piece.x;
+    let bestScore = 1e9;
+    for(let col=0; col<=COLS - m[0].length; col++){
+      // simulate drop at column col
+      let py = -1;
+      while(true){
+        py++;
+        let coll = false;
+        for(let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++) if (m[y][x]){
+          const bx = col + x, by = py + y;
+          if (by >= ROWS || (by>=0 && player.board[by][bx])) coll = true;
+        }
+        if (coll){ py--; break; }
+        if (py > ROWS) { py = ROWS; break; }
+      }
+      // compute score = sum of column heights
+      const tmpBoard = player.board.map(r => r.slice());
+      // place
+      for(let y=0;y<m.length;y++) for(let x=0;x<m[y].length;x++) if (m[y][x]){
+        const bx = col + x, by = py + y;
+        if (by>=0 && by<ROWS && bx>=0 && bx<COLS) tmpBoard[by][bx] = player.piece.color;
+      }
+      // score: sum heights
+      let sc = 0;
+      for(let c=0;c<COLS;c++){
+        let h = 0;
+        for(let r=0;r<ROWS;r++){ if (tmpBoard[r][c]){ h = ROWS - r; break; } }
+        sc += h;
+      }
+      if (sc < bestScore){ bestScore = sc; best = col; }
+    }
+    return best;
+  }
+
+  // ---------- UI helpers ----------
+  document.getElementById('clearScores').addEventListener('click', ()=> { if (confirm('Clear all local scores?')) clearScores(); });
+  document.getElementById('newGames').addEventListener('click', ()=> { P1.resetInternal(); P2.resetInternal(); });
+
+  // initial render
+  renderLeaderboard();
+  // start menu visible by default
+  showMenu();
+
+  // when unloading, stop auto
+  window.addEventListener('beforeunload', ()=> stopAutoPlay());
+})();
+</script>
+</body>
+</html>
